@@ -1112,42 +1112,66 @@ function shareMissing() {
     return;
   }
 
-  // Agrupar por sección
+  // Agrupar por prefijo de código + bandera
   const byTeam = {};
-  for (const s of missing) {
-    let bucket;
-    if (s.code === "00") bucket = "Panini";
-    else if (s.code.startsWith("FWC")) bucket = "WC History";
-    else if (s.code.startsWith("CC")) bucket = "Coca-Cola";
-    else bucket = s.es || s.team;
-    if (!byTeam[bucket]) byTeam[bucket] = [];
-    byTeam[bucket].push(s.code);
+  const orderedKeys = [];
+
+  for (const s of STICKERS) {
+    if (pool.has(s.code)) continue;
+
+    let prefix, flag;
+    if (s.code === "00") {
+      prefix = "Panini"; flag = "🎴";
+    } else if (s.code.startsWith("FWC")) {
+      prefix = "FWC"; flag = "🌎";
+    } else if (s.code.startsWith("CC")) {
+      prefix = "CC"; flag = "🥤";
+    } else {
+      const m = s.code.match(/^([A-Z]+)/);
+      prefix = m ? m[1] : s.code;
+      flag = s.flag || "";
+    }
+
+    if (!byTeam[prefix]) {
+      byTeam[prefix] = { prefix, flag, nums: [] };
+      orderedKeys.push(prefix);
+    }
+
+    if (s.code === "00") {
+      byTeam[prefix].nums.push("00");
+    } else if (s.code.startsWith("FWC")) {
+      byTeam[prefix].nums.push(s.code.slice(3));
+    } else if (s.code.startsWith("CC")) {
+      byTeam[prefix].nums.push(s.code.slice(2));
+    } else {
+      const nm = s.code.match(/\d+$/);
+      byTeam[prefix].nums.push(nm ? nm[0] : s.code);
+    }
   }
 
-  let txt = "🔴 Faltantes Álbum WC2026 (" + missing.length + "/" + STICKERS.length + "):\n\n";
-  for (const [team, codes] of Object.entries(byTeam)) {
-    txt += "*" + team + "* (" + codes.length + "): " + codes.join(", ") + "\n";
+  let txt = "🔴 Faltantes WC2026 (" + missing.length + "/" + STICKERS.length + "):\n";
+  for (const key of orderedKeys) {
+    const { prefix, flag, nums } = byTeam[key];
+    txt += "* " + prefix + " " + flag + ": " + nums.join(", ") + "\n";
   }
 
-  // Agregar duplicadas si hay
+  // Duplicadas
   const dupesArr = Object.entries(dupes).filter(([_,c]) => c > 0);
   if (dupesArr.length > 0) {
-    txt += "\n🟠 Repes para canjear:\n";
-    txt += dupesArr.map(([code, c]) => code + (c > 1 ? " x" + c : "")).join(", ");
+    txt += "\n♻️ Repes: ";
+    txt += dupesArr.map(([code, c]) => code + (c > 1 ? "×" + c : "")).join(", ");
   }
 
   if (navigator.share) {
     navigator.share({ title: "Faltantes álbum", text: txt }).catch(() => {});
   } else if (navigator.clipboard) {
     navigator.clipboard.writeText(txt).then(() => toast("Faltantes copiados al portapapeles"))
-      .catch(() => {
-        // Fallback: prompt
-        prompt("Copia este texto:", txt);
-      });
+      .catch(() => { prompt("Copia este texto:", txt); });
   } else {
     prompt("Copia este texto:", txt);
   }
 }
+
 
 function shareLink() {
   const url = window.location.href;
